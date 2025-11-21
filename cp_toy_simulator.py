@@ -18,27 +18,31 @@ Pipeline:
      i.e., y_true(x) = argmax_y p_true(y | x).
    - We also report average set size.
 
-This file is intended to be easy to modify for ground-truth and prediction mappings.
+The script also supports:
+- Multiple experiment repetitions with different seeds and averaging of metrics.
+- Logging results to a text file without timestamps.
 """
 
 from __future__ import annotations
-import numpy as np
-from typing import Callable, Dict, Any, List, Literal, Tuple
-from dataclasses import dataclass, asdict
+import os
 import math
 import json
-import datetime
-import os
+from dataclasses import dataclass, asdict
+from typing import Callable, Dict, Any, List, Literal, Tuple
+
+import numpy as np
+
+# ---------------------------
+# Logging
+# ---------------------------
 
 def write_log(log_path: str, text: str, print_too: bool = True) -> None:
-    """Append text directly to log file (no timestamp)."""
-    import os
+    """Append plain text to a log file (no timestamp)."""
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "a", encoding="utf-8") as f:
-        f.write(text + "\n" + "\n")
+        f.write(text + "\n")
     if print_too:
         print(text)
-
 
 # ---------------------------
 # Config
@@ -46,7 +50,7 @@ def write_log(log_path: str, text: str, print_too: bool = True) -> None:
 
 @dataclass
 class SimConfig:
-    n: int = 20
+    n: int = 200
     K: int = 5
     alpha: float = 0.1
     method: Literal["thr", "aps"] = "aps"
@@ -63,17 +67,14 @@ def set_seed(seed: int) -> None:
     np.random.seed(seed)
 
 # ---------------------------
-# Sampling x
+# Sampling x and labels
 # ---------------------------
 
 def sample_x(n: int, dim: int, low: float = 0.0, high: float = 1.0) -> np.ndarray:
     return np.random.uniform(low, high, size=(n, dim))
 
-# ---------------------------
-# Generic label sampling
-# ---------------------------
-
 def sample_labels(probs: np.ndarray) -> np.ndarray:
+    """Sample labels from row-wise categorical distributions."""
     cs = probs.cumsum(axis=1)
     r = np.random.rand(probs.shape[0], 1)
     return (cs < r).sum(axis=1)
@@ -153,6 +154,7 @@ def ppred_random_dirichlet(X: np.ndarray, K: int, kwargs: Dict[str, Any]) -> np.
 # ---------------------------
 
 def quantile_with_aps_adjustment(vals: np.ndarray, alpha: float) -> float:
+    """Compute the conformal quantile (1 - alpha)*(1 + 1/n)."""
     n = len(vals)
     q = (1 - alpha) * (1 + 1.0 / n)
     idx = int(math.ceil(q * n)) - 1
@@ -160,10 +162,11 @@ def quantile_with_aps_adjustment(vals: np.ndarray, alpha: float) -> float:
     return np.partition(vals, idx)[idx]
 
 def calibrate_thr(probs: np.ndarray, y: np.ndarray, alpha: float) -> float:
+    """Calibrate tau for THR using prediction probs and ground-truth labels."""
     s = 1.0 - probs[np.arange(len(y)), y]
     q = quantile_with_aps_adjustment(s, alpha)
-    t = 1.0 - q
-    return t
+    tau = 1.0 - q
+    return tau
 
 def aps_e_scores(probs: np.ndarray, y: np.ndarray, add_uniform_tiebreak: bool = True) -> np.ndarray:
     order = np.argsort(-probs, axis=1)
@@ -211,6 +214,7 @@ def build_sets_batch(probs: np.ndarray, method: str, tau: float, deterministic_U
     return sets
 
 def evaluate_sets(sets: List[np.ndarray], y_true: np.ndarray) -> Tuple[float, float, np.ndarray]:
+    """Compute coverage and average set size, plus histogram of set sizes."""
     n = len(sets)
     sizes = np.array([len(s) for s in sets])
     contains = np.array([y_true[i] in sets[i] for i in range(n)], dtype=float)
@@ -236,7 +240,7 @@ class ExperimentState:
     p_pred_cal: np.ndarray
     x_pred: np.ndarray
     p_pred_pred: np.ndarray
-    y_pred_true: np.ndarray
+    y_pred_true: np.ndarray  # argmax label of p_true on prediction split
 
 # ---------------------------
 # Main pipeline
@@ -308,48 +312,96 @@ def predict_split(exp: ExperimentState, deterministic_U: float = 1.0) -> Dict[st
         "avg_set_size": float(avg_size),
         "coverage_true_label": float(coverage),
         "size_hist": hist.tolist(),
-        # "example_sets_first5": [s.tolist() for s in sets[:5]],
     }
+
+# ---------------------------
+# Multi-run experimentation
+# ---------------------------
+
+def run_multiple_experiments(
+    num_runs: int,
+    base_cfg: SimConfig,
+    ptrue_fn,
+    ppred_fn,
+    ptrue_kwargs=None,
+    ppred_kwargs=None,
+    deterministic_U: float = 1.0,
+    log_path: str | None = None
+) -> Dict[str, Any]:
+    if ptrue_kwargs is None:
+        ptrue_kwargs = {}
+    if ppred_kwargs is None:
+        ppred_kwargs = {}
+
+    tau_list = []
+    avg_set_list = []
+    coverage_list = []
+
+    for i in range(num_runs):
+        cfg = SimConfig(**asdict(base_cfg))
+        cfg.seed = base_cfg.seed + i
+
+        exp = run_experiment(cfg, ptrue_fn, ppred_fn, ptrue_kwargs, ppred_kwargs)
+        res = predict_split(exp, deterministic_U=deterministic_U)
+
+        tau_list.append(res["tau"])
+        avg_set_list.append(res["avg_set_size"])
+        coverage_list.append(res["coverage_true_label"])
+
+        if log_path is not None:
+            write_log(
+                log_path,
+                f"[RUN {i}] tau={res['tau']:.4f}, avg_set={res['avg_set_size']:.4f}, "
+                f"coverage={res['coverage_true_label']:.4f}"
+            )
+
+    results = {
+        "num_runs": num_runs,
+        "tau_mean": float(np.mean(tau_list)),
+        "tau_std": float(np.std(tau_list)),
+        "avg_set_size_mean": float(np.mean(avg_set_list)),
+        "avg_set_size_std": float(np.std(avg_set_list)),
+        "coverage_mean": float(np.mean(coverage_list)),
+        "coverage_std": float(np.std(coverage_list)),
+    }
+
+    if log_path is not None:
+        write_log(log_path, "--- MULTI RUN SUMMARY ---")
+        write_log(log_path, json.dumps(results, indent=2, ensure_ascii=False))
+
+    return results
 
 # ---------------------------
 # Demo
 # ---------------------------
 
 def demo():
-    cfg = SimConfig(n=20, K=2, alpha=0.1, method="aps", x_dim=1, seed=42)
-    log_path = "./cp_log.txt"   # path can be changed as needed
+    cfg = SimConfig(n=300, K=5, alpha=0.1, method="aps", x_dim=1, seed=42)
+    log_path = "./logs/cp_log.txt"
 
     print_hparams(cfg)
-    write_log(log_path, "=== New Experiment ===")
+    write_log(log_path, "=== MULTI-RUN EXPERIMENT ===")
     write_log(log_path, f"Hyperparameters: {json.dumps(asdict(cfg))}")
-
-    # Log distributions being used
     write_log(log_path, "Ground-truth distribution: ptrue_gaussian_1d")
     write_log(log_path, "Prediction mapping: ppred_noisy_from_true")
 
-    exp = run_experiment(
-        cfg,
-        ptrue_fn=ptrue_bernoulli_1d,
+    results = run_multiple_experiments(
+        num_runs=20,
+        base_cfg=cfg,
+        ptrue_fn=ptrue_gaussian_1d,
         ppred_fn=ppred_noisy_from_true,
         ptrue_kwargs={"sharpness": 15.0},
-        ppred_kwargs={"ptrue_fn": ptrue_bernoulli_1d, "ptrue_kwargs": {"sharpness": 15.0}, "concentration": 6.0},
+        ppred_kwargs={
+            "ptrue_fn": ptrue_gaussian_1d,
+            "ptrue_kwargs": {"sharpness": 15.0},
+            "concentration": 6.0,
+        },
+        deterministic_U=1.0,
+        log_path=log_path,
     )
 
-    print("\n=== Calibration summary ===")
-    print(f"method={exp.method}  alpha={cfg.alpha}  tau={exp.tau:.6f}")
-    print(f"calibration set size = {cfg.n}")
-
-    write_log(log_path, f"Calibration: method={exp.method}, alpha={cfg.alpha}, tau={exp.tau:.6f}, n_cal={cfg.n}")
-
-    results = predict_split(exp, deterministic_U=1.0)
-
-    print("\n=== Prediction split stats ===")
+    print("\n=== Multi-run summary ===")
     print(json.dumps(results, indent=2, ensure_ascii=False))
-
-    write_log(log_path, f"Prediction: avg_set_size={results['avg_set_size']:.4f}")
-    write_log(log_path, f"Prediction: coverage_true_label={results['coverage_true_label']:.4f}")
-    write_log(log_path, f"Prediction: size_hist={results['size_hist']}")
-
 
 if __name__ == "__main__":
     demo()
