@@ -43,6 +43,13 @@ PX: Dict[str, float] = {
     "x2": 0.5,
 }
 
+# Ground-truth conditional distribution p_true(y|x). Lists aligned with LABELS; each sums to 1.
+# Used for sampling Y given X in calibration/test draws.
+P_TRUE: Dict[str, List[float]] = {
+    "x1": [0.5, 0.5],
+    "x2": [0.5, 0.5],
+}
+
 # Predictor probabilities p_hat(y|x). Lists aligned with LABELS; each sums to 1.
 PHAT: Dict[str, List[float]] = {
     "x1": [0.5, 0.5],
@@ -112,13 +119,14 @@ class Outcome:
     weight: float  # probability under data distribution
 
 def enumerate_one_draw(px: Dict[str, float]) -> List[Outcome]:
+    """Enumerate all possible (x,y) outcomes for one draw, using the ground-truth P_TRUE."""
     outs: List[Outcome] = []
     for x in X_VALUES:
-        if x not in PHAT:
-            raise ValueError(f"PHAT missing x={x}")
-        probs = PHAT[x]
-        _check_prob_vector(probs)
-        for y, py in zip(LABELS, probs):
+        if x not in P_TRUE:
+            raise ValueError(f"P_TRUE missing x={x}")
+        probs_true = P_TRUE[x]
+        _check_prob_vector(probs_true)
+        for y, py in zip(LABELS, probs_true):
             outs.append(Outcome(x=x, y=y, weight=px[x] * py))
     return outs
 
@@ -216,6 +224,15 @@ class ExactResults:
 
 def compute_exact() -> ExactResults:
     px = build_px()
+
+    # Basic validation: both PHAT and P_TRUE must define probabilities for every x in X_VALUES.
+    for x in X_VALUES:
+        if x not in PHAT:
+            raise ValueError(f"PHAT missing x={x}")
+        if x not in P_TRUE:
+            raise ValueError(f"P_TRUE missing x={x}")
+        _check_prob_vector(PHAT[x])
+        _check_prob_vector(P_TRUE[x])
     one_draw = enumerate_one_draw(px)
 
     test_outcomes = one_draw
@@ -292,6 +309,7 @@ def main() -> None:
     print(f"shared_tau_across_labels: {SHARED_TAU_ACROSS_LABELS}")
     print("--- Distribution ---")
     print(f"PX: {px}")
+    print(f"P_TRUE (ground truth, used to sample Y|X): {P_TRUE}")
     print(f"PHAT (also used as P(Y|X) here): {PHAT}")
     print(f"FIXED_TEST_X: {FIXED_TEST_X}")
     print("--- Exact results ---")
