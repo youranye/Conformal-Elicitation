@@ -1,0 +1,20 @@
+experiment_name: toy_v1
+seed: 0
+alpha: 0.1
+output_dir: outputs
+data:
+  path: configs/data/fixed_points.yaml
+model:
+  path: configs/model/mlp_toy.yaml
+splits:
+  fit_size: 256
+  inner_calibration_size: 128
+  outer_calibration_size: 128
+  test_size: 2000
+methods:
+  indirect:
+    path: configs/method/indirect_probability.yaml
+  direct:
+    path: configs/method/direct_pvalue.yaml
+evaluation:
+  tie_seed: 123
