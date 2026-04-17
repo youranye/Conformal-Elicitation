@@ -5,55 +5,66 @@ common evaluation pipeline.
 
 ## Methods
 
-Let the classifier output \(p_\theta(y \mid x)\), and let labels be sorted so
-\(p_\theta(y_{(1)} \mid x) \ge \cdots \ge p_\theta(y_{(K)} \mid x)\).
+Let the classifier output $p_\theta(y \mid x)$, and let labels be sorted so
+$p_\theta(y_{(1)} \mid x) \ge \cdots \ge p_\theta(y_{(K)} \mid x)$.
 
 ### 1. Indirect + conformal
 Train with cross-entropy, optionally apply post-hoc temperature scaling, then
 form exact randomized split-conformal sets with score
+
 $$
 S_\theta(x,y)=p_\theta(y \mid x).
 $$
-For calibration scores \(S_i^\theta=S_\theta(X_i,Y_i)\), the conformal p-value is
+
+For calibration scores $S_i^\theta=S_\theta(X_i,Y_i)$, the conformal p-value is
+
 $$
-p(x,y)=\frac{\sum_i \mathbf 1\{S_i^\theta < S_\theta(x,y)\}
-+ U\bigl(1+\sum_i \mathbf 1\{S_i^\theta=S_\theta(x,y)\}\bigr)}{n+1},
+p(x,y)=\frac{\sum_i \mathbf{1}\{S_i^\theta < S_\theta(x,y)\}
++ U\bigl(1+\sum_i \mathbf{1}\{S_i^\theta=S_\theta(x,y)\}\bigr)}{n+1},
 $$
+
 and the set is
+
 $$
-C^\alpha(x)=\{y: p(x,y)>\alpha\}.
+C^\alpha(x)=\{y : p(x,y)>\alpha\}.
 $$
 
 ### 2. Direct + conformal
 Train the score function end-to-end using the pure soft set-size surrogate
-\(\tilde L_{\text{size}}\), with conformal calibration inside the training
+$\tilde L_{\text{size}}$, with conformal calibration inside the training
 objective. Final evaluation still uses the exact conformal set
+
 $$
-C^\alpha(x)=\{y: p(x,y)>\alpha\}.
+C^\alpha(x)=\{y : p(x,y)>\alpha\}.
 $$
 
-### 3. Indirect + greedy cumulative mass, fixed \(\tau\)
+### 3. Indirect + greedy cumulative mass, fixed $\tau$
 Train indirectly, then build the set by accumulating top-ranked label mass
-until \(\tau = 1-\alpha\):
+until $\tau = 1 - \alpha$:
+
 $$
-L_\tau(x)=\min\left\{\ell:\sum_{j=1}^{\ell} p_\theta(y_{(j)}\mid x)\ge \tau\right\},
+L_\tau(x)=\min\left\{\ell :
+\sum_{j=1}^{\ell} p_\theta(y_{(j)} \mid x)\ge \tau \right\},
 \qquad
 C_{\theta,\tau}^{\text{mass}}(x)=\{y_{(1)},\dots,y_{(L_\tau(x))}\}.
 $$
 
-### 4. Indirect + greedy cumulative mass, calibrated \(\hat\tau\)
-Train indirectly, then choose the smallest \(\hat\tau\) on a calibration set
+### 4. Indirect + greedy cumulative mass, calibrated $\hat{\tau}$
+Train indirectly, then choose the smallest $\hat{\tau}$ on a calibration set
 such that empirical coverage reaches the target:
+
 $$
-\hat\tau
+\hat{\tau}
 =
-\inf\left\{\tau:
-\frac{1}{n}\sum_{i=1}^n \mathbf 1\{Y_i \in C_{\theta,\tau}^{\text{mass}}(X_i)\}
-\ge 1-\alpha \right\}.
+\inf\left\{\tau :
+\frac{1}{n}\sum_{i=1}^n \mathbf{1}\{Y_i \in C_{\theta,\tau}^{\text{mass}}(X_i)\}
+\ge 1 - \alpha \right\}.
 $$
+
 The final set is
+
 $$
-C_{\theta,\hat\tau}^{\text{mass}}(x).
+C_{\theta,\hat{\tau}}^{\text{mass}}(x).
 $$
 
 ## Datasets
@@ -105,6 +116,8 @@ python scripts/evaluate_conformal.py \
 ```
 
 ## Outputs
+
+Check `reports` for CIFAR-100 hierarchy experiment results. 
 
 Each run writes a directory under:
 
