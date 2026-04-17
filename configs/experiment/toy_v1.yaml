@@ -14,6 +14,10 @@ splits:
 methods:
   indirect:
     path: configs/method/indirect_probability.yaml
+  greedy_mass_fixed:
+    path: configs/method/greedy_mass_fixed_probability.yaml
+  greedy_mass_calibrated:
+    path: configs/method/greedy_mass_calibrated_probability.yaml
   direct:
     path: configs/method/direct_pvalue.yaml
 evaluation:

@@ -1,0 +1,24 @@
+experiment_name: cifar100_fine_resnet18_v1
+seed: 0
+alpha: 0.05
+output_dir: outputs
+device: auto
+data:
+  path: configs/data/cifar100_fine.yaml
+model:
+  path: configs/model/resnet18_cifar100_fine.yaml
+splits:
+  fit_size: 40000
+  inner_calibration_size: 5000
+  outer_calibration_size: 5000
+methods:
+  indirect:
+    path: configs/method/indirect_cifar100.yaml
+  greedy_mass_fixed:
+    path: configs/method/greedy_mass_fixed_cifar100.yaml
+  greedy_mass_calibrated:
+    path: configs/method/greedy_mass_calibrated_cifar100.yaml
+  direct:
+    path: configs/method/direct_cifar100.yaml
+evaluation:
+  tie_seed: 123

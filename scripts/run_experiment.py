@@ -23,7 +23,7 @@ def main() -> None:
 
     config = load_experiment_config(args.config)
     summary = {}
-    for method_name in ["indirect", "direct"]:
+    for method_name in config["methods"].keys():
         results = run_method(config, method_name=method_name)
         run_dir = save_run_artifacts(config, method_name=method_name, results=results)
         summary[method_name] = {

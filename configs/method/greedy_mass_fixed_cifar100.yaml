@@ -1,6 +1,6 @@
-name: indirect
+name: greedy_mass_fixed
 learning_rate: 0.1
-epochs: 60
+epochs: 80
 weight_decay: 0.0005
 batch_size: 128
 momentum: 0.9

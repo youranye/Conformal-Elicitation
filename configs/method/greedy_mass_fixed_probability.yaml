@@ -1,4 +1,4 @@
-name: indirect
+name: greedy_mass_fixed
 learning_rate: 0.5
 epochs: 400
 weight_decay: 0.0

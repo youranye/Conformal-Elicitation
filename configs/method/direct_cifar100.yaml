@@ -1,0 +1,10 @@
+name: direct
+learning_rate: 0.05
+epochs: 80
+weight_decay: 0.0005
+batch_size: 128
+momentum: 0.9
+tau_rank: 0.02
+tau_set: 0.02
+inner_refresh: epoch
+lr_schedule: cosine
