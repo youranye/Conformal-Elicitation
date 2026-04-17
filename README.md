@@ -104,8 +104,8 @@ Train indirectly, then build the set by accumulating top-ranked label mass
 until $\tau = 1 - \alpha$:
 
 $$
-L_\tau(x)=\min\left\{\ell :
-\sum_{j=1}^{\ell} p_\theta(y_{(j)} \mid x)\ge \tau \right\},
+L_\tau(x)=\min\{\ell :
+\sum_{j=1}^{\ell} p_\theta(y_{(j)} \mid x)\ge \tau \},
 \qquad
 C_{\theta,\tau}^{\text{mass}}(x)=\{y_{(1)},\dots,y_{(L_\tau(x))}\}.
 $$
@@ -114,7 +114,7 @@ $$
 Train indirectly, then choose the smallest $\hat{\tau}$ on a calibration set
 such that empirical coverage reaches the target:
 
-$$\hat{\tau}=\inf\left\{\tau : \frac{1}{n}\sum_{i=1}^n \mathbf{1}\{Y_i \in C_{\theta,\tau}^{\text{mass}}(X_i)\} \ge 1 - \alpha \right\}.$$
+$$\hat{\tau} = \inf\{\tau : \frac{1}{n}\sum_{i=1}^n \mathbf{1}\{Y_i \in C_{\theta,\tau}^{\text{mass}}(X_i)\} \ge 1 - \alpha \}.$$
 
 The final set is
 
